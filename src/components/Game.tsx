@@ -1,7 +1,5 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
 import { Player } from './Player';
 import { Enemy } from './Enemy';
 import { Ground } from './Ground';
@@ -24,23 +22,23 @@ export const Game = () => {
 
   return (
     <div className="w-full h-screen bg-game-bg relative">
-      <Canvas shadows camera={{ position: [10, 10, 10], fov: 50 }}>
-        <color attach="background" args={['#1A1F2C']} />
-        <ambientLight intensity={0.5} />
-        <directionalLight
-          castShadow
-          position={[10, 10, 10]}
-          intensity={1.5}
-          shadow-mapSize={[1024, 1024]}
-        >
-          <orthographicCamera attach="shadow-camera" args={[-10, 10, 10, -10]} />
-        </directionalLight>
-        <fog attach="fog" args={['#1A1F2C', 0, 40]} />
-        
-        {!gameOver && (
+      {!gameOver && (
+        <Canvas shadows camera={{ position: [10, 10, 10], fov: 50 }}>
+          <color attach="background" args={['#1A1F2C']} />
+          <ambientLight intensity={0.5} />
+          <directionalLight
+            castShadow
+            position={[10, 10, 10]}
+            intensity={1.5}
+            shadow-mapSize={[1024, 1024]}
+          >
+            <orthographicCamera attach="shadow-camera" args={[-10, 10, 10, -10]} />
+          </directionalLight>
+          <fog attach="fog" args={['#1A1F2C', 0, 40]} />
+          
           <GameScene />
-        )}
-      </Canvas>
+        </Canvas>
+      )}
       
       <GameOverlay
         score={score}
@@ -83,7 +81,6 @@ const GameScene = () => {
   
   const { increaseScore, decreaseLives, useAmmo, addAmmo } = useGameState();
 
-  // Spawn enemies (slower rate due to slower movement)
   useEffect(() => {
     const spawnEnemy = () => {
       const angle = Math.random() * Math.PI * 2;
@@ -100,11 +97,10 @@ const GameScene = () => {
       ]);
     };
 
-    const interval = setInterval(spawnEnemy, 3000); // Slower spawn rate
+    const interval = setInterval(spawnEnemy, 3000);
     return () => clearInterval(interval);
   }, []);
 
-  // Spawn ammo boxes periodically
   useEffect(() => {
     const spawnAmmoBox = () => {
       const x = (Math.random() * 2 - 1) * gameAreaSize * 0.7;
@@ -119,20 +115,17 @@ const GameScene = () => {
       ]);
     };
 
-    // Initial ammo boxes
     for (let i = 0; i < 3; i++) {
       spawnAmmoBox();
     }
 
-    const interval = setInterval(spawnAmmoBox, 15000); // Spawn new ammo boxes every 15 seconds
+    const interval = setInterval(spawnAmmoBox, 15000);
     return () => clearInterval(interval);
   }, []);
 
-  // Handle shooting
   useEffect(() => {
     const handleShoot = (e: KeyboardEvent) => {
       if (e.key === ' ' && playerRef.current) {
-        // Check if player has ammo
         const canShoot = useAmmo();
         
         if (canShoot) {
@@ -155,13 +148,11 @@ const GameScene = () => {
     return () => window.removeEventListener('keydown', handleShoot);
   }, [useAmmo]);
 
-  // Game loop
   useFrame(() => {
     if (!playerRef.current) return;
     
     const playerPosition = playerRef.current.getPosition();
     
-    // Update bullets
     setBullets(prev => 
       prev
         .map(bullet => {
@@ -174,7 +165,6 @@ const GameScene = () => {
           return { ...bullet, position: newPosition };
         })
         .filter(bullet => {
-          // Remove bullets that go too far
           const distanceFromCenter = Math.sqrt(
             bullet.position[0] * bullet.position[0] + 
             bullet.position[2] * bullet.position[2]
@@ -183,21 +173,18 @@ const GameScene = () => {
         })
     );
     
-    // Update enemies and check collisions
     setEnemies(prev => {
       const updatedEnemies = prev.map(enemy => {
-        // Move towards player (with slower speed)
         const dirX = playerPosition[0] - enemy.position[0];
         const dirZ = playerPosition[2] - enemy.position[2];
         const length = Math.sqrt(dirX * dirX + dirZ * dirZ);
         
         if (length < 0.1) {
-          // Collision with player
           decreaseLives();
           return null;
         }
         
-        const speed = 0.02; // Half the original speed
+        const speed = 0.02;
         const newX = enemy.position[0] + (dirX / length) * speed;
         const newZ = enemy.position[2] + (dirZ / length) * speed;
         
@@ -207,7 +194,6 @@ const GameScene = () => {
         };
       }).filter(Boolean) as typeof prev;
       
-      // Check bullet collisions
       const remainingEnemies = [...updatedEnemies];
       const remainingBullets = [...bullets];
       
@@ -222,10 +208,9 @@ const GameScene = () => {
           const distance = Math.sqrt(dx * dx + dz * dz);
           
           if (distance < 1) {
-            // Hit!
+            increaseScore();
             remainingEnemies.splice(i, 1);
             remainingBullets.splice(j, 1);
-            increaseScore();
             break;
           }
         }
@@ -235,7 +220,6 @@ const GameScene = () => {
       return remainingEnemies;
     });
     
-    // Check ammo box collisions
     setAmmoBoxes(prev => {
       return prev.filter(box => {
         const dx = playerPosition[0] - box.position[0];
@@ -243,7 +227,6 @@ const GameScene = () => {
         const distance = Math.sqrt(dx * dx + dz * dz);
         
         if (distance < 1) {
-          // Player collected ammo
           addAmmo(5);
           return false;
         }
