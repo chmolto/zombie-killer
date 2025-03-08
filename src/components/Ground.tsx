@@ -7,6 +7,57 @@ interface GroundProps {
 }
 
 export const Ground: React.FC<GroundProps> = ({ size }) => {
+  // Generate trees with variation
+  const forestElements = [];
+  
+  // Dense outer ring of trees
+  for (let i = 0; i < 40; i++) {
+    const angle = (i / 40) * Math.PI * 2;
+    const radius = size * 0.8 + Math.random() * 1;
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
+    const scale = 0.7 + Math.random() * 0.8;
+    
+    forestElements.push(
+      <group key={`outer-tree-${i}`} position={[x, 0, z]} scale={[scale, scale, scale]}>
+        <Tree />
+      </group>
+    );
+  }
+  
+  // Scattered inner trees
+  for (let i = 0; i < 30; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.random() * size * 0.7;
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
+    const scale = 0.5 + Math.random() * 0.7;
+    
+    // Don't place trees too close to center
+    if (Math.sqrt(x*x + z*z) > 3) {
+      forestElements.push(
+        <group key={`inner-tree-${i}`} position={[x, 0, z]} scale={[scale, scale, scale]}>
+          <Tree />
+        </group>
+      );
+    }
+  }
+  
+  // Scattered rocks
+  for (let i = 0; i < 15; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.random() * size * 0.6;
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
+    const scale = 0.3 + Math.random() * 0.4;
+    
+    forestElements.push(
+      <group key={`rock-${i}`} position={[x, 0, z]} scale={[scale, scale, scale]}>
+        <Rock />
+      </group>
+    );
+  }
+
   return (
     <group>
       {/* Main ground */}
@@ -16,44 +67,65 @@ export const Ground: React.FC<GroundProps> = ({ size }) => {
         receiveShadow
       >
         <planeGeometry args={[size * 2, size * 2]} />
-        <meshStandardMaterial color="#403E43" />
+        <meshStandardMaterial color="#3d5229" />
       </mesh>
       
-      {/* Grid lines */}
-      <gridHelper args={[size * 2, size * 2, '#333333', '#333333']} />
+      {/* Subtle grid for gameplay reference */}
+      <gridHelper args={[size * 2, size * 2, '#465c31', '#465c31']} position={[0, 0.02, 0]} />
       
-      {/* Environment details - trees and rocks */}
-      {Array.from({ length: 20 }).map((_, i) => {
-        const angle = (i / 20) * Math.PI * 2;
-        const radius = size * 0.7 + Math.random() * 2;
-        const x = Math.cos(angle) * radius;
-        const z = Math.sin(angle) * radius;
-        const scale = 0.5 + Math.random() * 1;
-        
-        return (
-          <group key={i} position={[x, 0, z]} scale={[scale, scale, scale]}>
-            {Math.random() > 0.5 ? (
-              // Tree
-              <>
-                <mesh position={[0, 1, 0]}>
-                  <coneGeometry args={[0.5, 1.5, 6]} />
-                  <meshStandardMaterial color="#6E59A5" />
-                </mesh>
-                <mesh position={[0, 0.25, 0]}>
-                  <cylinderGeometry args={[0.15, 0.15, 0.5, 8]} />
-                  <meshStandardMaterial color="#7E69AB" />
-                </mesh>
-              </>
-            ) : (
-              // Rock
-              <mesh>
-                <octahedronGeometry args={[0.5, 0]} />
-                <meshStandardMaterial color="#555555" />
-              </mesh>
-            )}
-          </group>
-        );
-      })}
+      {/* Forest elements */}
+      {forestElements}
     </group>
+  );
+};
+
+const Tree = () => {
+  // Randomize tree appearance
+  const trunkHeight = 0.5 + Math.random() * 0.5;
+  const trunkWidth = 0.15 + Math.random() * 0.1;
+  const treeType = Math.random();
+
+  return (
+    <group>
+      {/* Trunk */}
+      <mesh position={[0, trunkHeight / 2, 0]} castShadow>
+        <cylinderGeometry args={[trunkWidth, trunkWidth * 1.2, trunkHeight, 6]} />
+        <meshStandardMaterial color="#795548" />
+      </mesh>
+      
+      {treeType > 0.7 ? (
+        // Pine tree
+        <>
+          <mesh position={[0, trunkHeight + 0.6, 0]} castShadow>
+            <coneGeometry args={[0.7, 1.2, 6]} />
+            <meshStandardMaterial color="#2d3b20" />
+          </mesh>
+          <mesh position={[0, trunkHeight + 1.2, 0]} castShadow>
+            <coneGeometry args={[0.5, 0.8, 6]} />
+            <meshStandardMaterial color="#2d3b20" />
+          </mesh>
+          <mesh position={[0, trunkHeight + 1.6, 0]} castShadow>
+            <coneGeometry args={[0.3, 0.6, 6]} />
+            <meshStandardMaterial color="#2d3b20" />
+          </mesh>
+        </>
+      ) : (
+        // Deciduous tree
+        <mesh position={[0, trunkHeight + 0.8, 0]} castShadow>
+          <sphereGeometry args={[0.8, 8, 8]} />
+          <meshStandardMaterial color="#4a682c" />
+        </mesh>
+      )}
+    </group>
+  );
+};
+
+const Rock = () => {
+  const rotation = [Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI];
+  return (
+    <mesh rotation={rotation as [number, number, number]} castShadow receiveShadow>
+      <dodecahedronGeometry args={[0.5, 0]} />
+      <meshStandardMaterial color="#7d7d7d" />
+    </mesh>
   );
 };

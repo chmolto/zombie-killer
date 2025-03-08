@@ -3,13 +3,14 @@ import React, { useRef, useImperativeHandle, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-const PLAYER_SPEED = 0.15;
+const PLAYER_SPEED = 0.075; // Half the original speed
 
 export const Player = React.forwardRef<
   { getPosition: () => [number, number, number], getDirection: () => [number, number, number] },
   {}
 >((props, ref) => {
   const meshRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
   const [position, setPosition] = useState<[number, number, number]>([0, 0.5, 0]);
   const [rotation, setRotation] = useState<number>(0);
   const [direction, setDirection] = useState<[number, number, number]>([0, 0, 1]);
@@ -40,7 +41,7 @@ export const Player = React.forwardRef<
   }, []);
 
   // Move player based on key presses
-  useFrame(() => {
+  useFrame(({ clock }) => {
     let moveX = 0;
     let moveZ = 0;
     
@@ -61,22 +62,60 @@ export const Player = React.forwardRef<
       setDirection([Math.cos(angle), 0, Math.sin(angle)]);
     }
     
-    if (meshRef.current) {
-      meshRef.current.position.set(position[0], position[1], position[2]);
-      meshRef.current.rotation.y = rotation;
+    if (groupRef.current) {
+      groupRef.current.position.set(position[0], position[1], position[2]);
+      groupRef.current.rotation.y = rotation;
+      
+      // Add slight bob animation for walking
+      if (moveX !== 0 || moveZ !== 0) {
+        const bobAmount = Math.sin(clock.getElapsedTime() * 5) * 0.05;
+        groupRef.current.position.y = position[1] + bobAmount;
+      }
     }
   });
 
   return (
-    <group>
-      <mesh
-        ref={meshRef}
-        position={position}
-        castShadow
-        receiveShadow
-      >
+    <group ref={groupRef} position={position}>
+      {/* Body */}
+      <mesh castShadow receiveShadow position={[0, 0, 0]}>
         <capsuleGeometry args={[0.3, 0.7, 1, 8]} />
         <meshStandardMaterial color="#9b87f5" />
+      </mesh>
+      
+      {/* Head */}
+      <mesh castShadow position={[0, 0.7, 0]}>
+        <sphereGeometry args={[0.25, 8, 8]} />
+        <meshStandardMaterial color="#F5D0C5" />
+      </mesh>
+      
+      {/* Arms */}
+      <mesh castShadow position={[0.4, 0, 0]} rotation={[0, 0, -Math.PI / 4]}>
+        <capsuleGeometry args={[0.1, 0.5, 1, 8]} />
+        <meshStandardMaterial color="#7069AB" />
+      </mesh>
+      <mesh castShadow position={[-0.4, 0, 0]} rotation={[0, 0, Math.PI / 4]}>
+        <capsuleGeometry args={[0.1, 0.5, 1, 8]} />
+        <meshStandardMaterial color="#7069AB" />
+      </mesh>
+      
+      {/* Legs */}
+      <mesh castShadow position={[0.15, -0.5, 0]}>
+        <capsuleGeometry args={[0.1, 0.5, 1, 8]} />
+        <meshStandardMaterial color="#5B50A5" />
+      </mesh>
+      <mesh castShadow position={[-0.15, -0.5, 0]}>
+        <capsuleGeometry args={[0.1, 0.5, 1, 8]} />
+        <meshStandardMaterial color="#5B50A5" />
+      </mesh>
+      
+      {/* Eyes */}
+      <mesh position={[0.08, 0.7, 0.2]}>
+        <sphereGeometry args={[0.05, 8, 8]} />
+        <meshStandardMaterial color="black" />
+      </mesh>
+      <mesh position={[-0.08, 0.7, 0.2]}>
+        <sphereGeometry args={[0.05, 8, 8]} />
+        <meshStandardMaterial color="black" />
       </mesh>
     </group>
   );

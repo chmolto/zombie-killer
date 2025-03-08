@@ -4,17 +4,21 @@ import { create } from 'zustand';
 interface GameState {
   score: number;
   lives: number;
+  ammo: number;
   gameOver: boolean;
   gameStarted: boolean;
   increaseScore: () => void;
   decreaseLives: () => void;
+  useAmmo: () => boolean;
+  addAmmo: (amount: number) => void;
   startGame: () => void;
   resetGame: () => void;
 }
 
-export const useGameState = create<GameState>((set) => ({
+export const useGameState = create<GameState>((set, get) => ({
   score: 0,
   lives: 3,
+  ammo: 10,
   gameOver: false,
   gameStarted: false,
   
@@ -30,11 +34,24 @@ export const useGameState = create<GameState>((set) => ({
     };
   }),
   
+  useAmmo: () => {
+    const { ammo } = get();
+    if (ammo <= 0) return false;
+    
+    set((state) => ({ ammo: state.ammo - 1 }));
+    return true;
+  },
+  
+  addAmmo: (amount: number) => set((state) => ({ 
+    ammo: state.ammo + amount 
+  })),
+  
   startGame: () => set({
     gameStarted: true,
     gameOver: false,
     score: 0,
     lives: 3,
+    ammo: 10,
   }),
   
   resetGame: () => set({
@@ -42,5 +59,6 @@ export const useGameState = create<GameState>((set) => ({
     gameOver: false,
     score: 0,
     lives: 3,
+    ammo: 10,
   }),
 }));

@@ -1,19 +1,23 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { Player } from './Player';
 import { Enemy } from './Enemy';
 import { Ground } from './Ground';
 import { Bullet } from './Bullet';
 import { GameOverlay } from './GameOverlay';
+import { Minimap } from './Minimap';
+import { AmmoBox } from './AmmoBox';
 import { useGameState } from '../hooks/useGameState';
+import * as THREE from 'three';
 
 export const Game = () => {
   const { 
     score, 
     gameOver, 
-    lives, 
+    lives,
+    ammo,
     startGame, 
     resetGame 
   } = useGameState();
@@ -36,19 +40,13 @@ export const Game = () => {
         {!gameOver && (
           <GameScene />
         )}
-        
-        <OrbitControls 
-          enablePan={false} 
-          enableZoom={false} 
-          enableRotate={false} 
-          makeDefault 
-        />
       </Canvas>
       
       <GameOverlay
         score={score}
         lives={lives}
         gameOver={gameOver}
+        ammo={ammo}
         onStart={startGame}
         onRestart={resetGame}
       />
@@ -56,17 +54,36 @@ export const Game = () => {
   );
 };
 
+const CameraController = ({ target }) => {
+  const { camera } = useThree();
+  
+  useFrame(() => {
+    if (target.current) {
+      const position = target.current.getPosition();
+      // Maintain isometric view but follow player
+      camera.position.x = position[0] + 8;
+      camera.position.y = position[1] + 8;
+      camera.position.z = position[2] + 8;
+      camera.lookAt(position[0], position[1], position[2]);
+    }
+  });
+  
+  return null;
+};
+
 const GameScene = () => {
   const [enemies, setEnemies] = useState<{ id: number; position: [number, number, number] }[]>([]);
   const [bullets, setBullets] = useState<{ id: number; position: [number, number, number]; direction: [number, number, number] }[]>([]);
+  const [ammoBoxes, setAmmoBoxes] = useState<{ id: number; position: [number, number, number] }[]>([]);
   const playerRef = useRef<any>(null);
   const enemyIdRef = useRef(0);
   const bulletIdRef = useRef(0);
+  const ammoBoxIdRef = useRef(0);
   const gameAreaSize = 15;
   
-  const { increaseScore, decreaseLives } = useGameState();
+  const { increaseScore, decreaseLives, useAmmo, addAmmo } = useGameState();
 
-  // Spawn enemies
+  // Spawn enemies (slower rate due to slower movement)
   useEffect(() => {
     const spawnEnemy = () => {
       const angle = Math.random() * Math.PI * 2;
@@ -83,7 +100,31 @@ const GameScene = () => {
       ]);
     };
 
-    const interval = setInterval(spawnEnemy, 2000);
+    const interval = setInterval(spawnEnemy, 3000); // Slower spawn rate
+    return () => clearInterval(interval);
+  }, []);
+
+  // Spawn ammo boxes periodically
+  useEffect(() => {
+    const spawnAmmoBox = () => {
+      const x = (Math.random() * 2 - 1) * gameAreaSize * 0.7;
+      const z = (Math.random() * 2 - 1) * gameAreaSize * 0.7;
+      
+      setAmmoBoxes(prev => [
+        ...prev, 
+        { 
+          id: ammoBoxIdRef.current++, 
+          position: [x, 0.25, z] 
+        }
+      ]);
+    };
+
+    // Initial ammo boxes
+    for (let i = 0; i < 3; i++) {
+      spawnAmmoBox();
+    }
+
+    const interval = setInterval(spawnAmmoBox, 15000); // Spawn new ammo boxes every 15 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -91,23 +132,28 @@ const GameScene = () => {
   useEffect(() => {
     const handleShoot = (e: KeyboardEvent) => {
       if (e.key === ' ' && playerRef.current) {
-        const playerPos = playerRef.current.getPosition();
-        const playerDir = playerRef.current.getDirection();
+        // Check if player has ammo
+        const canShoot = useAmmo();
         
-        setBullets(prev => [
-          ...prev,
-          {
-            id: bulletIdRef.current++,
-            position: [playerPos[0], 0.5, playerPos[2]],
-            direction: [playerDir[0], 0, playerDir[2]]
-          }
-        ]);
+        if (canShoot) {
+          const playerPos = playerRef.current.getPosition();
+          const playerDir = playerRef.current.getDirection();
+          
+          setBullets(prev => [
+            ...prev,
+            {
+              id: bulletIdRef.current++,
+              position: [playerPos[0], 0.5, playerPos[2]],
+              direction: [playerDir[0], 0, playerDir[2]]
+            }
+          ]);
+        }
       }
     };
 
     window.addEventListener('keydown', handleShoot);
     return () => window.removeEventListener('keydown', handleShoot);
-  }, []);
+  }, [useAmmo]);
 
   // Game loop
   useFrame(() => {
@@ -140,7 +186,7 @@ const GameScene = () => {
     // Update enemies and check collisions
     setEnemies(prev => {
       const updatedEnemies = prev.map(enemy => {
-        // Move towards player
+        // Move towards player (with slower speed)
         const dirX = playerPosition[0] - enemy.position[0];
         const dirZ = playerPosition[2] - enemy.position[2];
         const length = Math.sqrt(dirX * dirX + dirZ * dirZ);
@@ -151,7 +197,7 @@ const GameScene = () => {
           return null;
         }
         
-        const speed = 0.04;
+        const speed = 0.02; // Half the original speed
         const newX = enemy.position[0] + (dirX / length) * speed;
         const newZ = enemy.position[2] + (dirZ / length) * speed;
         
@@ -188,12 +234,29 @@ const GameScene = () => {
       setBullets(remainingBullets);
       return remainingEnemies;
     });
+    
+    // Check ammo box collisions
+    setAmmoBoxes(prev => {
+      return prev.filter(box => {
+        const dx = playerPosition[0] - box.position[0];
+        const dz = playerPosition[2] - box.position[2];
+        const distance = Math.sqrt(dx * dx + dz * dz);
+        
+        if (distance < 1) {
+          // Player collected ammo
+          addAmmo(5);
+          return false;
+        }
+        return true;
+      });
+    });
   });
 
   return (
     <>
       <Ground size={gameAreaSize} />
       <Player ref={playerRef} />
+      <CameraController target={playerRef} />
       
       {enemies.map(enemy => (
         <Enemy key={enemy.id} position={enemy.position} />
@@ -202,6 +265,14 @@ const GameScene = () => {
       {bullets.map(bullet => (
         <Bullet key={bullet.id} position={bullet.position} />
       ))}
+      
+      {ammoBoxes.map(box => (
+        <AmmoBox key={box.id} position={box.position} />
+      ))}
+      
+      <Minimap playerPosition={playerRef.current ? playerRef.current.getPosition() : [0, 0, 0]} 
+               enemies={enemies} 
+               ammoBoxes={ammoBoxes} />
     </>
   );
 };

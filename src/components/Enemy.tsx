@@ -8,61 +8,82 @@ interface EnemyProps {
 }
 
 export const Enemy: React.FC<EnemyProps> = ({ position }) => {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
   const initialPosition = useRef(position).current;
   
   // Animation
   useFrame(({ clock }) => {
-    if (meshRef.current) {
-      meshRef.current.position.set(...position);
+    if (groupRef.current) {
+      groupRef.current.position.set(...position);
       
-      // Bob up and down
+      // Bob up and down and stagger like a zombie
       const time = clock.getElapsedTime();
-      meshRef.current.position.y = 0.5 + Math.sin(time * 2) * 0.1;
+      groupRef.current.position.y = 0.5 + Math.sin(time * 2) * 0.1;
+      groupRef.current.rotation.z = Math.sin(time * 1.5) * 0.1; // Zombie stagger
       
       // Face movement direction
-      if (meshRef.current.position.x !== initialPosition[0] || meshRef.current.position.z !== initialPosition[2]) {
-        const dx = meshRef.current.position.x - initialPosition[0];
-        const dz = meshRef.current.position.z - initialPosition[2];
-        meshRef.current.rotation.y = Math.atan2(dx, dz);
+      if (groupRef.current.position.x !== initialPosition[0] || groupRef.current.position.z !== initialPosition[2]) {
+        const dx = groupRef.current.position.x - initialPosition[0];
+        const dz = groupRef.current.position.z - initialPosition[2];
+        groupRef.current.rotation.y = Math.atan2(dx, dz);
       }
     }
   });
 
   return (
-    <mesh
-      ref={meshRef}
+    <group
+      ref={groupRef}
       position={position}
       castShadow
       receiveShadow
     >
-      <group>
-        {/* Body */}
-        <mesh position={[0, 0, 0]}>
-          <capsuleGeometry args={[0.3, 0.7, 1, 8]} />
-          <meshStandardMaterial color="#97F58B" />
-        </mesh>
-        
-        {/* Arms */}
-        <mesh position={[0.4, 0, 0]} rotation={[0, 0, -Math.PI / 4]}>
-          <capsuleGeometry args={[0.1, 0.5, 1, 8]} />
-          <meshStandardMaterial color="#77D56B" />
-        </mesh>
-        <mesh position={[-0.4, 0, 0]} rotation={[0, 0, Math.PI / 4]}>
-          <capsuleGeometry args={[0.1, 0.5, 1, 8]} />
-          <meshStandardMaterial color="#77D56B" />
-        </mesh>
-        
-        {/* Eyes */}
-        <mesh position={[0.15, 0.4, 0.25]}>
-          <sphereGeometry args={[0.08, 8, 8]} />
-          <meshStandardMaterial color="red" />
-        </mesh>
-        <mesh position={[-0.15, 0.4, 0.25]}>
-          <sphereGeometry args={[0.08, 8, 8]} />
-          <meshStandardMaterial color="red" />
-        </mesh>
-      </group>
-    </mesh>
+      {/* Zombie Body */}
+      <mesh position={[0, 0, 0]}>
+        <capsuleGeometry args={[0.3, 0.7, 1, 8]} />
+        <meshStandardMaterial color="#97F58B" />
+      </mesh>
+      
+      {/* Zombie Head */}
+      <mesh position={[0, 0.7, 0]}>
+        <sphereGeometry args={[0.25, 8, 8]} />
+        <meshStandardMaterial color="#77D56B" />
+      </mesh>
+      
+      {/* Arms - outstretched zombie style */}
+      <mesh position={[0.4, 0.2, 0.2]} rotation={[0.5, 0, -Math.PI / 3]}>
+        <capsuleGeometry args={[0.1, 0.5, 1, 8]} />
+        <meshStandardMaterial color="#77D56B" />
+      </mesh>
+      <mesh position={[-0.4, 0.2, 0.2]} rotation={[0.5, 0, Math.PI / 3]}>
+        <capsuleGeometry args={[0.1, 0.5, 1, 8]} />
+        <meshStandardMaterial color="#77D56B" />
+      </mesh>
+      
+      {/* Legs */}
+      <mesh position={[0.15, -0.5, 0]}>
+        <capsuleGeometry args={[0.1, 0.5, 1, 8]} />
+        <meshStandardMaterial color="#579C4D" />
+      </mesh>
+      <mesh position={[-0.15, -0.5, 0]}>
+        <capsuleGeometry args={[0.1, 0.5, 1, 8]} />
+        <meshStandardMaterial color="#579C4D" />
+      </mesh>
+      
+      {/* Eyes */}
+      <mesh position={[0.08, 0.7, 0.2]}>
+        <sphereGeometry args={[0.05, 8, 8]} />
+        <meshStandardMaterial color="red" emissive="red" emissiveIntensity={0.5} />
+      </mesh>
+      <mesh position={[-0.08, 0.7, 0.2]}>
+        <sphereGeometry args={[0.05, 8, 8]} />
+        <meshStandardMaterial color="red" emissive="red" emissiveIntensity={0.5} />
+      </mesh>
+      
+      {/* Tattered clothes */}
+      <mesh position={[0, 0.1, 0]}>
+        <boxGeometry args={[0.6, 0.4, 0.4]} />
+        <meshStandardMaterial color="#3D5E35" />
+      </mesh>
+    </group>
   );
 };
