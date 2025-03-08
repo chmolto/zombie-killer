@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,13 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				game: {
+					'bg': '#1A1F2C',
+					'ground': '#403E43',
+					'player': '#9b87f5',
+					'zombie': '#97F58B',
+					'bullet': '#F97316'
 				}
 			},
 			borderRadius: {
