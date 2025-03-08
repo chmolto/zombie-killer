@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Player } from './Player';
@@ -11,6 +12,10 @@ import { useGameState } from '../hooks/useGameState';
 import * as THREE from 'three';
 
 export const Game = () => {
+  const [playerPosition, setPlayerPosition] = useState<[number, number, number]>([0, 0, 0]);
+  const [gameEnemies, setGameEnemies] = useState<{ id: number; position: [number, number, number] }[]>([]);
+  const [gameAmmoBoxes, setGameAmmoBoxes] = useState<{ id: number; position: [number, number, number] }[]>([]);
+  
   const { 
     score, 
     gameOver, 
@@ -36,8 +41,21 @@ export const Game = () => {
           </directionalLight>
           <fog attach="fog" args={['#1A1F2C', 0, 40]} />
           
-          <GameScene />
+          <GameScene 
+            updatePlayerPosition={setPlayerPosition}
+            updateEnemies={setGameEnemies}
+            updateAmmoBoxes={setGameAmmoBoxes}
+          />
         </Canvas>
+      )}
+      
+      {/* Render Minimap outside of Canvas */}
+      {!gameOver && (
+        <Minimap 
+          playerPosition={playerPosition} 
+          enemies={gameEnemies} 
+          ammoBoxes={gameAmmoBoxes} 
+        />
       )}
       
       <GameOverlay
@@ -69,7 +87,17 @@ const CameraController = ({ target }) => {
   return null;
 };
 
-const GameScene = () => {
+interface GameSceneProps {
+  updatePlayerPosition: (position: [number, number, number]) => void;
+  updateEnemies: (enemies: { id: number; position: [number, number, number] }[]) => void;
+  updateAmmoBoxes: (boxes: { id: number; position: [number, number, number] }[]) => void;
+}
+
+const GameScene: React.FC<GameSceneProps> = ({ 
+  updatePlayerPosition,
+  updateEnemies,
+  updateAmmoBoxes 
+}) => {
   const [enemies, setEnemies] = useState<{ id: number; position: [number, number, number] }[]>([]);
   const [bullets, setBullets] = useState<{ id: number; position: [number, number, number]; direction: [number, number, number] }[]>([]);
   const [ammoBoxes, setAmmoBoxes] = useState<{ id: number; position: [number, number, number] }[]>([]);
@@ -152,6 +180,11 @@ const GameScene = () => {
     if (!playerRef.current) return;
     
     const playerPosition = playerRef.current.getPosition();
+    
+    // Update player position for minimap
+    updatePlayerPosition(playerPosition);
+    updateEnemies(enemies);
+    updateAmmoBoxes(ammoBoxes);
     
     setBullets(prev => 
       prev
@@ -252,10 +285,6 @@ const GameScene = () => {
       {ammoBoxes.map(box => (
         <AmmoBox key={box.id} position={box.position} />
       ))}
-      
-      <Minimap playerPosition={playerRef.current ? playerRef.current.getPosition() : [0, 0, 0]} 
-               enemies={enemies} 
-               ammoBoxes={ammoBoxes} />
     </>
   );
 };

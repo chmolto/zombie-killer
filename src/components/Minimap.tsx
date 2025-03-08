@@ -1,7 +1,5 @@
 
-import React, { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import React, { useRef, useEffect } from 'react';
 
 interface MinimapProps {
   playerPosition: [number, number, number];
@@ -14,7 +12,7 @@ export const Minimap: React.FC<MinimapProps> = ({ playerPosition, enemies, ammoB
   const mapSize = 150; // Pixel size of the minimap
   const gameAreaSize = 15; // Match the game area size
   
-  React.useEffect(() => {
+  useEffect(() => {
     const updateMinimap = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
