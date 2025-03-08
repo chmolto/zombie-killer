@@ -12,7 +12,7 @@ export const Bullet: React.FC<BulletProps> = ({ position }) => {
   
   useFrame(() => {
     if (meshRef.current) {
-      meshRef.current.position.set(...position);
+      meshRef.current.position.set(position[0], position[1], position[2]);
     }
   });
 

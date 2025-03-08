@@ -30,7 +30,7 @@ export const AmmoBox: React.FC<AmmoBoxProps> = ({ position }) => {
       
       {/* Bullets inside the box */}
       <mesh position={[0, 0.2, 0]}>
-        <cylinderGeometry args={[0.05, 0.05, 0.3, 8]} rotation={[Math.PI / 2, 0, 0]} />
+        <cylinderGeometry args={[0.05, 0.05, 0.3, 8]} />
         <meshStandardMaterial color="#B35900" />
       </mesh>
       
