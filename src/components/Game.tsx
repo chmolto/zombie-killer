@@ -1,16 +1,25 @@
-import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useRef, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrbitControls, useTexture, Stats } from '@react-three/drei';
+import * as THREE from 'three';
 import { Player } from './Player';
 import { Ground } from './Ground';
 import { Enemy } from './Enemy';
 import { Bullet } from './Bullet';
 import { useGameState } from '../hooks/useGameState';
 import { GameOverlay } from './GameOverlay';
+import { Minimap } from './Minimap';
+import { MobileControls } from './MobileControls';
 
 export const Game: React.FC = () => {
   const [playerPosition, setPlayerPosition] = useState<[number, number, number]>([0, 0, 0]);
+  const [playerDirection, setPlayerDirection] = useState<[number, number, number]>([0, 0, 1]);
   const [enemies, setEnemies] = useState<any[]>([]);
   const [ammoBoxes, setAmmoBoxes] = useState<any[]>([]);
+  const [isPaused, setIsPaused] = useState(false);
+  
+  // Mobile controls state
+  const [mobileDirection, setMobileDirection] = useState<[number, number]>([0, 0]);
   
   const { 
     score, 
@@ -57,6 +66,8 @@ export const Game: React.FC = () => {
           onPlayerMove={handlePlayerMove} 
           updateEnemies={updateEnemies}
           updateAmmoBoxes={updateAmmoBoxes}
+          isPaused={isPaused}
+          mobileDirection={mobileDirection}
         />
       </Canvas>
       
@@ -67,6 +78,29 @@ export const Game: React.FC = () => {
         ammo={ammo}
         onStart={startGame}
         onRestart={resetGame}
+        isPaused={isPaused}
+        setIsPaused={setIsPaused}
+      />
+      
+      {/* Add Minimap to the game UI when game is active */}
+      {gameStarted && !gameOver && (
+        <Minimap 
+          playerPosition={playerPosition} 
+          enemies={enemies} 
+          ammoBoxes={ammoBoxes}
+        />
+      )}
+      
+      {/* Mobile Controls */}
+      <MobileControls 
+        onMove={(x, y) => setMobileDirection([x, y])}
+        onShoot={() => {
+          // This is a proxy function that will be called by the mobile controls
+          // We can't directly access the shoot function from the GameScene
+          // So we'll use a custom event to trigger it
+          const shootEvent = new CustomEvent('mobile-shoot');
+          window.dispatchEvent(shootEvent);
+        }}
       />
     </div>
   );
@@ -78,6 +112,8 @@ interface GameSceneProps {
   onPlayerMove: (position: [number, number, number]) => void;
   updateEnemies: (enemies: any[]) => void;
   updateAmmoBoxes: (ammoBoxes: any[]) => void;
+  isPaused: boolean;
+  mobileDirection: [number, number];
 }
 
 // Camera controller to follow the player
@@ -105,13 +141,19 @@ const GameScene: React.FC<GameSceneProps> = ({
   playerPosition, 
   onPlayerMove, 
   updateEnemies, 
-  updateAmmoBoxes 
+  updateAmmoBoxes,
+  isPaused,
+  mobileDirection
 }) => {
   const [enemies, setEnemies] = useState<{ id: number; position: [number, number, number]; isDying?: boolean }[]>([]);
   const [bullets, setBullets] = useState<{ id: number; position: [number, number, number]; direction: [number, number, number] }[]>([]);
   const [ammoBoxes, setAmmoBoxes] = useState<{ id: number; position: [number, number, number] }[]>([]);
   
-  const playerRef = useRef<any>(null);
+  const playerRef = useRef<{
+    getPosition: () => [number, number, number];
+    getDirection: () => [number, number, number];
+    triggerShootAnimation: () => void;
+  }>(null);
   const nextBulletId = useRef(1);
   const nextEnemyId = useRef(1);
   const nextAmmoBoxId = useRef(1);
@@ -139,6 +181,9 @@ const GameScene: React.FC<GameSceneProps> = ({
   
   // Reference for manual key handling
   const keysPressed = useRef<Set<string>>(new Set());
+  
+  // Mobile controls state
+  const [mobileDirectionState, setMobileDirectionState] = useState<[number, number]>([0, 0]);
   
   // Handle keyboard inputs
   useEffect(() => {
@@ -210,6 +255,19 @@ const GameScene: React.FC<GameSceneProps> = ({
     }
   };
   
+  // Listen for mobile shoot event
+  useEffect(() => {
+    const handleMobileShoot = () => {
+      shoot();
+    };
+    
+    window.addEventListener('mobile-shoot', handleMobileShoot);
+    
+    return () => {
+      window.removeEventListener('mobile-shoot', handleMobileShoot);
+    };
+  }, []);
+  
   // Clean up dying zombies after animation completes
   useEffect(() => {
     const interval = setInterval(() => {
@@ -261,25 +319,34 @@ const GameScene: React.FC<GameSceneProps> = ({
   
   // Separate effect to check for round completion outside the spawn interval
   useEffect(() => {
-    if (gameState !== 'playing' || roundComplete) return;
+    if (gameState !== 'playing') return;
     
-    const totalEnemiesForRound = 5 + (round * 3);
+    const totalEnemiesForRound = 2 + (round * 3);
     
-    // Check if we've spawned all enemies for this round and there are no more alive or dying enemies
-    if (enemyCount >= totalEnemiesForRound && enemies.length === 0 && dyingEnemies.length === 0) {
+    // Debug logging to help identify the issue
+    console.log(`[DEBUG] Round status: round=${round}, enemyCount=${enemyCount}, enemies=${enemies.length}, dyingEnemies=${dyingEnemies.length}, totalNeeded=${totalEnemiesForRound}`);
+    
+    // Modified condition: If we've spawned ALL enemies for this round AND there are no more alive enemies
+    if (enemyCount >= totalEnemiesForRound && enemies.length === 0) {
       console.log("[DEBUG] Round complete! Starting next round soon...");
-      setRoundComplete(true);
+      // Force a delay before marking round as complete to ensure all death animations are processed
+      setTimeout(() => {
+        setRoundComplete(true);
+      }, 1000);
     }
-  }, [gameState, enemyCount, enemies.length, dyingEnemies.length, round, roundComplete]);
+  }, [gameState, enemyCount, enemies.length, dyingEnemies.length, round]);
   
   // Start next round after a delay
   useEffect(() => {
     if (gameState !== 'playing' || !roundComplete) return;
     
+    console.log("[DEBUG] Starting next round timer");
+    
     const timer = setTimeout(() => {
+      console.log("[DEBUG] Next round starting now!");
       nextRound();
       setRoundComplete(false);
-      setEnemyCount(0);
+      setEnemyCount(0); // Reset enemy count to ensure proper tracking for the new round
     }, 3000);
     
     return () => clearTimeout(timer);
@@ -313,10 +380,13 @@ const GameScene: React.FC<GameSceneProps> = ({
   
   // Game logic updates
   useFrame(() => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || isPaused) return;
     
     // Update bullets (move them forward)
     setBullets(prev => {
+      // Skip updates if no bullets to process
+      if (prev.length === 0) return prev;
+      
       const updatedBullets = prev.map(bullet => {
         // Move bullet in its direction
         const speed = 0.5; // Speed of bullet movement
@@ -342,6 +412,9 @@ const GameScene: React.FC<GameSceneProps> = ({
     
     // Update enemies (move them toward player)
     setEnemies(prev => {
+      // Skip updates if no enemies to process
+      if (prev.length === 0) return prev;
+      
       const updatedEnemies = prev.map(enemy => {
         // Skip updating dying enemies
         if (enemy.isDying) return enemy;
@@ -372,66 +445,75 @@ const GameScene: React.FC<GameSceneProps> = ({
       return updatedEnemies;
     });
     
-    // Check for bullet-enemy collisions
-    const allBullets = [...bullets];
-    const allEnemies = [...enemies];
-    const killedEnemies: typeof dyingEnemies = [];
-    let bulletHits: number[] = [];
-    
-    // Check each bullet against each enemy
-    for (let i = 0; i < allBullets.length; i++) {
-      const bullet = allBullets[i];
+    // Check for bullet-enemy collisions - only if both bullets and enemies exist
+    if (bullets.length > 0 && enemies.length > 0) {
+      const allBullets = [...bullets];
+      const allEnemies = [...enemies];
+      const killedEnemies: typeof dyingEnemies = [];
+      let bulletHits: number[] = [];
       
-      for (let j = 0; j < allEnemies.length; j++) {
-        const enemy = allEnemies[j];
+      // Use a more efficient collision detection approach
+      for (let i = 0; i < allBullets.length; i++) {
+        const bullet = allBullets[i];
         
-        // Skip already dying enemies
-        if (enemy.isDying) continue;
-        
-        // Calculate distance between bullet and enemy
-        const dx = enemy.position[0] - bullet.position[0];
-        const dz = enemy.position[2] - bullet.position[2];
-        const distance = Math.sqrt(dx * dx + dz * dz);
-        
-        // If close enough, count as a hit
-        if (distance < 1.0) {
-          console.log(`[DEBUG] Hit! Bullet ${bullet.id} hit enemy ${enemy.id} at distance ${distance.toFixed(2)}`);
+        for (let j = 0; j < allEnemies.length; j++) {
+          const enemy = allEnemies[j];
           
-          // Mark enemy as dying
-          allEnemies[j] = {
-            ...enemy,
-            isDying: true
-          };
+          // Skip already dying enemies
+          if (enemy.isDying) continue;
           
-          // Track bullet for removal
-          bulletHits.push(bullet.id);
+          // Use squared distance for performance (avoid sqrt)
+          const dx = enemy.position[0] - bullet.position[0];
+          const dz = enemy.position[2] - bullet.position[2];
+          const distanceSquared = dx * dx + dz * dz;
           
-          // Add to dying enemies list
-          killedEnemies.push({
-            id: enemy.id,
-            position: enemy.position,
-            deathTime: Date.now()
-          });
-          
-          // Increase score
-          increaseScore();
-          
-          break; // Stop checking this bullet
+          // If close enough, count as a hit (1.0^2 = 1.0)
+          if (distanceSquared < 1.0) {
+            // Mark enemy as dying
+            allEnemies[j] = {
+              ...enemy,
+              isDying: true
+            };
+            
+            // Track bullet for removal
+            bulletHits.push(bullet.id);
+            
+            // Add to dying enemies list
+            killedEnemies.push({
+              id: enemy.id,
+              position: enemy.position,
+              deathTime: Date.now()
+            });
+            
+            // Increase score
+            increaseScore();
+            
+            break; // Stop checking this bullet
+          }
         }
       }
-    }
-    
-    // Remove bullets that hit enemies
-    if (bulletHits.length > 0) {
-      setBullets(prev => 
-        prev.filter(bullet => !bulletHits.includes(bullet.id))
-      );
-    }
-    
-    // Update enemies with dying status
-    if (killedEnemies.length > 0) {
-      setEnemies(allEnemies);
-      setDyingEnemies(prev => [...prev, ...killedEnemies]);
+      
+      // Remove bullets that hit enemies
+      if (bulletHits.length > 0) {
+        setBullets(prev => 
+          prev.filter(bullet => !bulletHits.includes(bullet.id))
+        );
+      }
+      
+      // Update enemies and add dying enemies
+      if (killedEnemies.length > 0) {
+        setEnemies(prev => 
+          prev.map(enemy => {
+            const dyingEnemy = killedEnemies.find(e => e.id === enemy.id);
+            if (dyingEnemy) {
+              return { ...enemy, isDying: true };
+            }
+            return enemy;
+          })
+        );
+        
+        setDyingEnemies(prev => [...prev, ...killedEnemies]);
+      }
     }
     
     // Check for ammo box collection
@@ -464,6 +546,7 @@ const GameScene: React.FC<GameSceneProps> = ({
         ref={playerRef}
         onPositionChange={onPlayerMove}
         onDirectionChange={() => {}}
+        mobileDirection={mobileDirection}
       />
       
       <Ground size={gameAreaSize} />

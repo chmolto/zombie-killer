@@ -1,19 +1,29 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
+import { useTexture } from '@react-three/drei';
 
 interface GroundProps {
   size: number;
 }
 
 export const Ground: React.FC<GroundProps> = ({ size }) => {
+  // We'll multiply the size to make the map bigger
+  const expandedSize = size * 1.5;
+  
+  // Load and configure textures for more realistic ground
+  const grassTexture = useTexture('/textures/grass.jpg', (texture) => {
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(expandedSize / 5, expandedSize / 5);
+  });
+  
   // Generate trees and rocks only once using useMemo
   const forestElements = useMemo(() => {
     const elements = [];
     
-    // Dense outer ring of trees
-    for (let i = 0; i < 40; i++) {
-      const angle = (i / 40) * Math.PI * 2;
-      const radius = size * 0.8 + Math.random() * 1;
+    // Dense outer ring of trees - create a thicker forest wall
+    for (let i = 0; i < 80; i++) {
+      const angle = (i / 80) * Math.PI * 2;
+      const radius = expandedSize * 0.85 + Math.random() * 2;
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
       const scale = 0.7 + Math.random() * 0.8;
@@ -25,16 +35,31 @@ export const Ground: React.FC<GroundProps> = ({ size }) => {
       );
     }
     
+    // Secondary outer ring for depth
+    for (let i = 0; i < 60; i++) {
+      const angle = (i / 60) * Math.PI * 2 + (Math.random() * 0.1);
+      const radius = expandedSize * 0.75 + Math.random() * 2;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      const scale = 0.6 + Math.random() * 0.7;
+      
+      elements.push(
+        <group key={`mid-tree-${i}`} position={[x, 0, z]} scale={[scale, scale, scale]}>
+          <Tree />
+        </group>
+      );
+    }
+    
     // Scattered inner trees
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 45; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const radius = Math.random() * size * 0.7;
+      const radius = Math.random() * expandedSize * 0.7;
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
       const scale = 0.5 + Math.random() * 0.7;
       
       // Don't place trees too close to center
-      if (Math.sqrt(x*x + z*z) > 3) {
+      if (Math.sqrt(x*x + z*z) > 4) {
         elements.push(
           <group key={`inner-tree-${i}`} position={[x, 0, z]} scale={[scale, scale, scale]}>
             <Tree />
@@ -44,9 +69,9 @@ export const Ground: React.FC<GroundProps> = ({ size }) => {
     }
     
     // Scattered rocks
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 25; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const radius = Math.random() * size * 0.6;
+      const radius = Math.random() * expandedSize * 0.6;
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
       const scale = 0.3 + Math.random() * 0.4;
@@ -58,23 +83,65 @@ export const Ground: React.FC<GroundProps> = ({ size }) => {
       );
     }
     
+    // Add grass tufts for ground detail
+    for (let i = 0; i < 150; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * expandedSize * 0.8;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      const scale = 0.2 + Math.random() * 0.3;
+      
+      elements.push(
+        <group key={`grass-${i}`} position={[x, 0, z]} scale={[scale, scale, scale]}>
+          <GrassTuft />
+        </group>
+      );
+    }
+    
+    // Create outer fog trees - these will create the illusion of endless forest
+    for (let i = 0; i < 100; i++) {
+      const angle = (i / 100) * Math.PI * 2;
+      const radius = expandedSize * 0.95 + Math.random() * 5;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      const scale = 0.8 + Math.random() * 1.2;
+      
+      elements.push(
+        <group key={`fog-tree-${i}`} position={[x, 0, z]} scale={[scale, scale, scale]}>
+          <Tree fogTree={true} />
+        </group>
+      );
+    }
+    
     return elements;
-  }, []); // Empty dependency array ensures this runs only once
+  }, [expandedSize]); // Update when expandedSize changes
 
   return (
     <group>
-      {/* Main ground */}
+      {/* Larger ground plane with texture */}
       <mesh 
         rotation={[-Math.PI / 2, 0, 0]} 
         position={[0, -0.01, 0]}
         receiveShadow
       >
-        <planeGeometry args={[size * 2, size * 2]} />
-        <meshStandardMaterial color="#3d5229" />
+        <planeGeometry args={[expandedSize * 3, expandedSize * 3, 32, 32]} />
+        <meshStandardMaterial 
+          map={grassTexture} 
+          color="#4a6234" 
+          roughness={0.8}
+          metalness={0.2}
+        />
       </mesh>
       
-      {/* Subtle grid for gameplay reference */}
-      <gridHelper args={[size * 2, size * 2, '#465c31', '#465c31']} position={[0, 0.02, 0]} />
+      {/* Distant ground plane for horizon effect */}
+      <mesh 
+        rotation={[-Math.PI / 2, 0, 0]} 
+        position={[0, -0.02, 0]}
+        receiveShadow
+      >
+        <planeGeometry args={[expandedSize * 6, expandedSize * 6]} />
+        <meshStandardMaterial color="#3d5229" opacity={0.9} transparent={true} />
+      </mesh>
       
       {/* Forest elements */}
       {forestElements}
@@ -82,41 +149,41 @@ export const Ground: React.FC<GroundProps> = ({ size }) => {
   );
 };
 
-const Tree = () => {
+const Tree = ({ fogTree = false }) => {
   // Randomize tree appearance
   const trunkHeight = 0.5 + Math.random() * 0.5;
   const trunkWidth = 0.15 + Math.random() * 0.1;
   const treeType = Math.random();
+  
+  // For fog trees use a darker material to create depth illusion
+  const foliageColor = fogTree ? "#263219" : "#3a5229";
+  const trunkColor = fogTree ? "#3d2c1e" : "#795548";
 
   return (
     <group>
       {/* Trunk */}
       <mesh position={[0, trunkHeight / 2, 0]} castShadow>
         <cylinderGeometry args={[trunkWidth, trunkWidth * 1.2, trunkHeight, 6]} />
-        <meshStandardMaterial color="#795548" />
+        <meshStandardMaterial color={trunkColor} />
       </mesh>
       
       {treeType > 0.7 ? (
         // Pine tree
         <>
           <mesh position={[0, trunkHeight + 0.6, 0]} castShadow>
-            <coneGeometry args={[0.7, 1.2, 6]} />
-            <meshStandardMaterial color="#2d3b20" />
+            <coneGeometry args={[0.6, 1.2, 6]} />
+            <meshStandardMaterial color={foliageColor} />
           </mesh>
           <mesh position={[0, trunkHeight + 1.2, 0]} castShadow>
-            <coneGeometry args={[0.5, 0.8, 6]} />
-            <meshStandardMaterial color="#2d3b20" />
-          </mesh>
-          <mesh position={[0, trunkHeight + 1.6, 0]} castShadow>
-            <coneGeometry args={[0.3, 0.6, 6]} />
-            <meshStandardMaterial color="#2d3b20" />
+            <coneGeometry args={[0.4, 0.8, 6]} />
+            <meshStandardMaterial color={foliageColor} />
           </mesh>
         </>
       ) : (
-        // Deciduous tree
-        <mesh position={[0, trunkHeight + 0.8, 0]} castShadow>
-          <sphereGeometry args={[0.8, 8, 8]} />
-          <meshStandardMaterial color="#4a682c" />
+        // Regular tree with foliage
+        <mesh position={[0, trunkHeight + 0.45, 0]} castShadow>
+          <sphereGeometry args={[0.7, 8, 8, 0, Math.PI * 2, 0, Math.PI * 0.7]} />
+          <meshStandardMaterial color={foliageColor} />
         </mesh>
       )}
     </group>
@@ -124,11 +191,24 @@ const Tree = () => {
 };
 
 const Rock = () => {
-  const rotation = [Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI];
+  // Randomize rock shape
+  const rockWidth = 0.6 + Math.random() * 0.4;
+  const rockHeight = 0.3 + Math.random() * 0.2;
+  
   return (
-    <mesh rotation={rotation as [number, number, number]} castShadow receiveShadow>
-      <dodecahedronGeometry args={[0.5, 0]} />
-      <meshStandardMaterial color="#7d7d7d" />
+    <mesh position={[0, rockHeight / 2, 0]} rotation={[0, Math.random() * Math.PI, 0]} castShadow receiveShadow>
+      <boxGeometry args={[rockWidth, rockHeight, rockWidth]} />
+      <meshStandardMaterial color="#666666" roughness={0.9} />
+    </mesh>
+  );
+};
+
+// Simple grass tuft for additional ground detail
+const GrassTuft = () => {
+  return (
+    <mesh position={[0, 0.1, 0]} castShadow>
+      <coneGeometry args={[0.2, 0.4, 3]} />
+      <meshStandardMaterial color="#567d3e" />
     </mesh>
   );
 };

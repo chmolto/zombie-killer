@@ -12,6 +12,8 @@ interface GameOverlayProps {
   ammo: number;
   onStart: () => void;
   onRestart: () => void;
+  isPaused: boolean;
+  setIsPaused: (paused: boolean) => void;
 }
 
 export const GameOverlay: React.FC<GameOverlayProps> = ({
@@ -20,7 +22,9 @@ export const GameOverlay: React.FC<GameOverlayProps> = ({
   gameOver,
   ammo,
   onStart,
-  onRestart
+  onRestart,
+  isPaused,
+  setIsPaused
 }) => {
   const [startDialogOpen, setStartDialogOpen] = useState(true);
   const [gameOverDialogOpen, setGameOverDialogOpen] = useState(false);
@@ -75,7 +79,20 @@ export const GameOverlay: React.FC<GameOverlayProps> = ({
     }
   }, [newRoundStarted, acknowledgeNewRound]);
   
+  // Handle ESC key for pausing the game
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !startDialogOpen && !gameOverDialogOpen) {
+        setIsPaused(!isPaused);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [startDialogOpen, gameOverDialogOpen, isPaused, setIsPaused]);
+  
   const handleStartGame = () => {
+    if (!playerName.trim()) return;
     setStartDialogOpen(false);
     onStart();
   };
@@ -86,12 +103,17 @@ export const GameOverlay: React.FC<GameOverlayProps> = ({
   };
   
   const handleSubmitScore = () => {
+    // We already have the player name from the start screen
     if (playerName.trim()) {
       addToLeaderboard(playerName);
     } else {
       addToLeaderboard('Anonymous');
     }
     handleRestartGame();
+  };
+  
+  const handleResume = () => {
+    setIsPaused(false);
   };
   
   return (
@@ -129,13 +151,27 @@ export const GameOverlay: React.FC<GameOverlayProps> = ({
           <DialogHeader>
             <DialogTitle className="text-4xl font-bold mb-4 text-game-player">Forest Zombie Survival</DialogTitle>
           </DialogHeader>
-          <div className="mb-6 text-lg">
+          <div className="mb-4 text-lg">
             Survive the zombie apocalypse in the forest! Move with WASD or arrow keys, and shoot with spacebar.
             Watch your ammo and collect refills from yellow boxes. Each round will get harder with more zombies!
           </div>
+          
+          <div className="mb-6">
+            <Label htmlFor="start-player-name" className="mb-2 block text-lg">Enter your name:</Label>
+            <Input 
+              id="start-player-name" 
+              value={playerName} 
+              onChange={(e) => setPlayerName(e.target.value)}
+              placeholder="Your name"
+              className="pointer-events-auto"
+              maxLength={15}
+            />
+          </div>
+          
           <Button 
             onClick={handleStartGame}
             className="w-full pointer-events-auto bg-game-player hover:bg-game-player/80 text-xl py-6"
+            disabled={!playerName.trim()}
           >
             Start Game
           </Button>
@@ -168,7 +204,7 @@ export const GameOverlay: React.FC<GameOverlayProps> = ({
           {/* Leaderboard */}
           <div className="mb-6">
             <h3 className="text-xl font-bold mb-2">Leaderboard</h3>
-            <div className="bg-slate-800 p-3 rounded max-h-60 overflow-y-auto">
+            <div className="p-3 rounded max-h-60 overflow-y-auto">
               <table className="w-full">
                 <thead>
                   <tr className="text-left border-b border-gray-700">
@@ -208,6 +244,37 @@ export const GameOverlay: React.FC<GameOverlayProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* Pause Dialog */}
+      {isPaused && (
+        <Dialog open={isPaused} onOpenChange={setIsPaused}>
+          <DialogContent className="sm:max-w-md pointer-events-auto">
+            <DialogHeader>
+              <DialogTitle className="text-3xl font-bold mb-2">Game Paused</DialogTitle>
+            </DialogHeader>
+            
+            <div className="mb-4 text-lg">
+              <p>Game paused. Press ESC to resume or use the button below.</p>
+              <div className="mt-4 p-3 rounded">
+                <p className="text-sm mb-2">Current Stats:</p>
+                <p>Round: {round}</p>
+                <p>Score: {score}</p>
+                <p>Lives: {Array(lives).fill('❤️').join(' ')}</p>
+                <p>Ammo: {ammo}</p>
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button 
+                onClick={handleResume}
+                className="w-full pointer-events-auto bg-game-player hover:bg-game-player/80 text-lg py-4"
+              >
+                Resume Game
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };

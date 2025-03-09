@@ -7,6 +7,7 @@ const PLAYER_SPEED = 0.075; // Speed constant
 interface PlayerProps {
   onPositionChange?: (position: [number, number, number]) => void;
   onDirectionChange?: (direction: [number, number, number]) => void;
+  mobileDirection?: [number, number]; // Add mobile direction prop
 }
 
 export const Player = React.forwardRef<
@@ -96,6 +97,15 @@ export const Player = React.forwardRef<
     if (keys.current.has('s') || keys.current.has('arrowdown')) moveZ += PLAYER_SPEED;
     if (keys.current.has('a') || keys.current.has('arrowleft')) moveX -= PLAYER_SPEED;
     if (keys.current.has('d') || keys.current.has('arrowright')) moveX += PLAYER_SPEED;
+    
+    // Update movement based on mobile direction input
+    if (props.mobileDirection) {
+      const [mobileX, mobileY] = props.mobileDirection;
+      if (Math.abs(mobileX) > 0.1 || Math.abs(mobileY) > 0.1) {
+        moveX += mobileX * PLAYER_SPEED * 1.5; // Slightly faster for mobile
+        moveZ += mobileY * PLAYER_SPEED * 1.5;
+      }
+    }
     
     isMoving.current = moveX !== 0 || moveZ !== 0;
     
@@ -223,7 +233,7 @@ export const Player = React.forwardRef<
       </mesh>
       
       {/* Gun model */}
-      <group ref={gunRef} position={[0.5, 0.15, 0.4]} rotation={[0, 0, 0]}>
+      <group ref={gunRef} position={[0.35, 0.15, 0.25]} rotation={[0, Math.PI/16, 0]}>
         {/* Gun barrel */}
         <mesh position={[0, 0, 0.2]} castShadow>
           <boxGeometry args={[0.08, 0.08, 0.6]} />
