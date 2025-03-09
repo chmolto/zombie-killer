@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useGameState } from '../hooks/useGameState';
@@ -10,7 +10,6 @@ interface GameOverlayProps {
   lives: number;
   gameOver: boolean;
   ammo: number;
-  round: number;
   onStart: () => void;
   onRestart: () => void;
 }
@@ -20,7 +19,6 @@ export const GameOverlay: React.FC<GameOverlayProps> = ({
   lives,
   gameOver,
   ammo,
-  round,
   onStart,
   onRestart
 }) => {
@@ -29,22 +27,26 @@ export const GameOverlay: React.FC<GameOverlayProps> = ({
   const [playerName, setPlayerName] = useState('');
   const [showRoundAnnouncement, setShowRoundAnnouncement] = useState(false);
   
+  // Get game state from global store
   const { 
+    round, 
     leaderboard, 
     newRoundStarted, 
     acknowledgeNewRound, 
-    addToLeaderboard,
-    totalEnemiesForRound 
+    addToLeaderboard 
   } = useGameState();
   
+  // Refs for animations
   const roundAnnouncementRef = useRef<HTMLDivElement>(null);
   
+  // Close start dialog when game starts
   useEffect(() => {
     if (score > 0 || lives < 3) {
       setStartDialogOpen(false);
     }
   }, [score, lives]);
   
+  // Show game over dialog when game is over
   useEffect(() => {
     if (gameOver) {
       setGameOverDialogOpen(true);
@@ -53,14 +55,17 @@ export const GameOverlay: React.FC<GameOverlayProps> = ({
     }
   }, [gameOver]);
   
+  // Handle round announcements
   useEffect(() => {
     if (newRoundStarted) {
       setShowRoundAnnouncement(true);
       
+      // Animation for round announcement
       if (roundAnnouncementRef.current) {
         roundAnnouncementRef.current.classList.add('animate-pulse');
       }
       
+      // Automatically hide the announcement after a delay
       const timer = setTimeout(() => {
         setShowRoundAnnouncement(false);
         acknowledgeNewRound();
@@ -91,41 +96,41 @@ export const GameOverlay: React.FC<GameOverlayProps> = ({
   
   return (
     <div className="absolute inset-0 pointer-events-none">
+      {/* HUD */}
       <div className="absolute top-4 left-4 flex flex-col gap-2 text-white bg-black/30 p-2 rounded">
         <div className="text-xl">Round: {round}</div>
-        <div className="text-xl">Enemies: {totalEnemiesForRound}</div>
         <div className="text-xl">Score: {score}</div>
         <div className="text-xl">Lives: {Array(lives).fill('❤️').join(' ')}</div>
         <div className="text-xl">Ammo: {ammo} {ammo <= 3 ? '⚠️' : ''}</div>
       </div>
       
+      {/* Controls info */}
       <div className="absolute bottom-4 right-4 text-white bg-black/30 p-2 rounded text-right">
         <div>WASD or Arrows: Move</div>
         <div>Space: Shoot</div>
         <div>Find <span className="text-yellow-400">⬛</span> to get ammo!</div>
       </div>
       
+      {/* Round Announcement */}
       {showRoundAnnouncement && (
         <div 
           ref={roundAnnouncementRef}
           className="absolute top-1/4 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-8 py-4 rounded-lg text-center"
         >
           <h2 className="text-4xl font-bold mb-2">Round {round}</h2>
-          <p className="text-xl">Get ready! {totalEnemiesForRound} zombies are coming!</p>
+          <p className="text-xl">Get ready! More zombies are coming!</p>
           {round > 1 && <p className="text-lg mt-2 text-yellow-400">+{Math.min(5 + round, 20)} ammo bonus!</p>}
         </div>
       )}
       
+      {/* Start Dialog */}
       <Dialog open={startDialogOpen} onOpenChange={setStartDialogOpen}>
         <DialogContent className="sm:max-w-md pointer-events-auto">
           <DialogHeader>
             <DialogTitle className="text-4xl font-bold mb-4 text-game-player">Forest Zombie Survival</DialogTitle>
-            <DialogDescription>
-              Survive the zombie apocalypse in the forest!
-            </DialogDescription>
           </DialogHeader>
           <div className="mb-6 text-lg">
-            Move with WASD or arrow keys, and shoot with spacebar.
+            Survive the zombie apocalypse in the forest! Move with WASD or arrow keys, and shoot with spacebar.
             Watch your ammo and collect refills from yellow boxes. Each round will get harder with more zombies!
           </div>
           <Button 
@@ -137,13 +142,11 @@ export const GameOverlay: React.FC<GameOverlayProps> = ({
         </DialogContent>
       </Dialog>
       
+      {/* Game Over Dialog with Leaderboard */}
       <Dialog open={gameOverDialogOpen} onOpenChange={setGameOverDialogOpen}>
         <DialogContent className="sm:max-w-md pointer-events-auto">
           <DialogHeader>
             <DialogTitle className="text-3xl font-bold text-red-500 mb-2">Game Over!</DialogTitle>
-            <DialogDescription>
-              Better luck next time!
-            </DialogDescription>
           </DialogHeader>
           
           <div className="mb-4">
@@ -162,6 +165,7 @@ export const GameOverlay: React.FC<GameOverlayProps> = ({
             />
           </div>
           
+          {/* Leaderboard */}
           <div className="mb-6">
             <h3 className="text-xl font-bold mb-2">Leaderboard</h3>
             <div className="bg-slate-800 p-3 rounded max-h-60 overflow-y-auto">
