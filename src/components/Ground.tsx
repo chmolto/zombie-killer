@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
-import { CanvasTexture, RepeatWrapping, MeshStandardMaterial } from 'three';
+
+import React, { useMemo } from 'three';
+import * as THREE from 'three';
 
 interface GroundProps {
   size: number;
@@ -16,27 +17,25 @@ export const Ground: React.FC<GroundProps> = ({ size, isInfinite = false }) => {
     const context = canvas.getContext('2d');
     
     if (context) {
-      // Base color - darker and more natural
-      context.fillStyle = '#2d3b20';
+      // Base color
+      context.fillStyle = '#3d5229';
       context.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Add noise and variation for more natural look
-      for (let i = 0; i < 8000; i++) {
+      // Add some variation
+      for (let i = 0; i < 5000; i++) {
         const x = Math.random() * canvas.width;
         const y = Math.random() * canvas.height;
         const radius = Math.random() * 2;
         
-        // Random grass shades - more natural palette
+        // Random grass shades
         const shade = Math.random();
         
-        if (shade < 0.25) {
-          context.fillStyle = '#2d3b20'; // Dark base
-        } else if (shade < 0.5) {
-          context.fillStyle = '#3d4c2a'; // Medium dark
-        } else if (shade < 0.75) {
-          context.fillStyle = '#4a5a32'; // Medium light
+        if (shade < 0.33) {
+          context.fillStyle = '#465c31';
+        } else if (shade < 0.66) {
+          context.fillStyle = '#2d3b20';
         } else {
-          context.fillStyle = '#576838'; // Light accent
+          context.fillStyle = '#4a682c';
         }
         
         context.beginPath();
@@ -44,12 +43,12 @@ export const Ground: React.FC<GroundProps> = ({ size, isInfinite = false }) => {
         context.fill();
       }
       
-      // Add subtle grass blade details
-      for (let i = 0; i < 2000; i++) {
+      // Add some "blades" of grass
+      for (let i = 0; i < 1000; i++) {
         const x = Math.random() * canvas.width;
         const y = Math.random() * canvas.height;
-        const length = 2 + Math.random() * 4;
-        const width = 0.5 + Math.random() * 1;
+        const length = 2 + Math.random() * 5;
+        const width = 0.5 + Math.random() * 1.5;
         const angle = Math.random() * Math.PI;
         
         context.fillStyle = '#5a7832';
@@ -62,15 +61,15 @@ export const Ground: React.FC<GroundProps> = ({ size, isInfinite = false }) => {
     }
     
     // Create texture from canvas
-    const texture = new CanvasTexture(canvas);
-    texture.wrapS = RepeatWrapping;
-    texture.wrapT = RepeatWrapping;
-    texture.repeat.set(20, 20); // Increased repeat for more detail
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(10, 10);
     
     // Create material with the texture
-    const material = new MeshStandardMaterial({
+    const material = new THREE.MeshStandardMaterial({
       map: texture,
-      roughness: 0.9,
+      roughness: 0.8,
       metalness: 0.1
     });
     
@@ -147,20 +146,21 @@ export const Ground: React.FC<GroundProps> = ({ size, isInfinite = false }) => {
     
     return elements;
   }, [size, isInfinite]);
-  
+
   // Generate additional ground planes for infinite effect
   const infiniteGroundElements = useMemo(() => {
     if (!isInfinite) return null;
     
     const elements = [];
     const visibleSize = size * 2;
-    const tiles = 3; // Reduced for better performance
+    const tiles = 5; // Number of ground tiles in each direction
     
     for (let x = -tiles; x <= tiles; x++) {
       for (let z = -tiles; z <= tiles; z++) {
         // Skip the center tile (it's rendered separately)
         if (x === 0 && z === 0) continue;
         
+        // Create a ground tile
         elements.push(
           <mesh
             key={`ground-${x}-${z}`}
@@ -177,7 +177,7 @@ export const Ground: React.FC<GroundProps> = ({ size, isInfinite = false }) => {
     
     return elements;
   }, [size, isInfinite, grassMaterial]);
-  
+
   return (
     <group>
       {/* Main ground */}
@@ -193,13 +193,12 @@ export const Ground: React.FC<GroundProps> = ({ size, isInfinite = false }) => {
       {/* Infinite ground planes */}
       {infiniteGroundElements}
       
-      {/* Subtle grid for gameplay reference - only show when not infinite */}
-      {!isInfinite && (
-        <gridHelper 
-          args={[size * 2, size * 2, '#465c31', '#465c31']} 
-          position={[0, 0.01, 0]} 
-        />
-      )}
+      {/* Subtle grid for gameplay reference */}
+      <gridHelper 
+        args={[size * 2, size * 2, '#465c31', '#465c31']} 
+        position={[0, 0.01, 0]} 
+        visible={!isInfinite} // Hide grid in infinite mode
+      />
       
       {/* Forest elements */}
       {forestElements}

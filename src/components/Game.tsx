@@ -1,6 +1,5 @@
-
 import React, { useState, useRef, useEffect, Suspense } from 'react';
-import { Canvas, useThree, useFrame } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { Player } from './Player';
 import { Ground } from './Ground';
 import { Enemy } from './Enemy';
@@ -73,62 +72,20 @@ export const Game: React.FC = () => {
         onStart={startGame}
         onRestart={resetGame}
       />
-
-      {/* Render minimap as a DOM element outside of the Three.js canvas */}
-      <div className="absolute right-4 bottom-4 z-10 pointer-events-none">
-        <div className="bg-black/50 p-2 rounded-md">
-          <div className="text-white text-xs mb-1 text-center">Map</div>
-          <div className="w-[150px] h-[150px] relative">
-            {/* We'll use a simple 2D representation of game elements */}
-            <div className="absolute inset-0 bg-green-900/70 rounded-md overflow-hidden">
-              {/* Player marker */}
-              <div 
-                className="absolute w-2 h-2 bg-blue-500 rounded-full" 
-                style={{ 
-                  left: `${((playerPosition[0] / 40) + 0.5) * 100}%`, 
-                  top: `${((playerPosition[2] / 40) + 0.5) * 100}%`,
-                  transform: 'translate(-50%, -50%)'
-                }}
-              />
-              
-              {/* Enemy markers */}
-              {enemies.map((enemy, index) => (
-                <div 
-                  key={`minimap-enemy-${index}`}
-                  className={`absolute w-1.5 h-1.5 ${enemy.isDying ? 'bg-gray-400' : 'bg-red-500'} rounded-full`}
-                  style={{ 
-                    left: `${((enemy.position[0] / 40) + 0.5) * 100}%`, 
-                    top: `${((enemy.position[2] / 40) + 0.5) * 100}%`,
-                    transform: 'translate(-50%, -50%)'
-                  }}
-                />
-              ))}
-              
-              {/* Ammo box markers */}
-              {ammoBoxes.map((box, index) => (
-                <div 
-                  key={`minimap-ammo-${index}`}
-                  className="absolute w-1.5 h-1.5 bg-yellow-400 rounded-sm"
-                  style={{ 
-                    left: `${((box.position[0] / 40) + 0.5) * 100}%`, 
-                    top: `${((box.position[2] / 40) + 0.5) * 100}%`,
-                    transform: 'translate(-50%, -50%)'
-                  }}
-                />
-              ))}
-              
-              {/* Forest boundary indicator - circular border */}
-              <div className="absolute inset-2 border-2 border-green-700/50 rounded-full" />
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
 
+// Game scene component - this is where all the 3D rendering happens
+interface GameSceneProps {
+  playerPosition: [number, number, number];
+  onPlayerMove: (position: [number, number, number]) => void;
+  updateEnemies: (enemies: any[]) => void;
+  updateAmmoBoxes: (ammoBoxes: any[]) => void;
+}
+
 // Camera controller to follow the player
-const CameraController = ({ target }: { target: React.RefObject<any> }) => {
+const CameraController = ({ target }) => {
   const { camera } = useThree();
   
   useFrame(() => {
@@ -147,14 +104,6 @@ const CameraController = ({ target }: { target: React.RefObject<any> }) => {
   
   return null;
 };
-
-// Game scene component - this is where all the 3D rendering happens
-interface GameSceneProps {
-  playerPosition: [number, number, number];
-  onPlayerMove: (position: [number, number, number]) => void;
-  updateEnemies: (enemies: any[]) => void;
-  updateAmmoBoxes: (ammoBoxes: any[]) => void;
-}
 
 const GameScene: React.FC<GameSceneProps> = ({ 
   playerPosition, 
@@ -184,14 +133,8 @@ const GameScene: React.FC<GameSceneProps> = ({
     round,
     nextRound,
     enemyKilled,
-    totalEnemiesForRound,
-    enemiesKilled
+    totalEnemiesForRound
   } = useGameState();
-  
-  // Debug logging for tracking round progression
-  useEffect(() => {
-    console.log(`[DEBUG] Round: ${round}, Enemies killed: ${enemiesKilled}/${totalEnemiesForRound}`);
-  }, [round, enemiesKilled, totalEnemiesForRound]);
   
   // Compute current game state based on gameStarted and gameOver flags
   const gameState = gameOver ? 'gameOver' : (gameStarted ? 'playing' : 'waiting');
@@ -242,10 +185,6 @@ const GameScene: React.FC<GameSceneProps> = ({
     const position = playerRef.current.getPosition();
     const direction = playerRef.current.getDirection();
     
-    console.log('[DEBUG] Shoot function called');
-    console.log('[DEBUG] Player position:', position);
-    console.log('[DEBUG] Player direction:', direction);
-    
     // Start bullet slightly in front of player (avoid self-collision)
     const bulletPosition: [number, number, number] = [
       position[0] + direction[0] * 0.7, // Start in front of player
@@ -257,16 +196,14 @@ const GameScene: React.FC<GameSceneProps> = ({
     const newBullet = {
       id: nextBulletId.current++,
       position: bulletPosition,
-      direction: [direction[0], 0, direction[2]] as [number, number, number]
+      direction: [direction[0], 0, -direction[2]] as [number, number, number] // Fix Y-axis direction by inverting Z component
     };
     
-    console.log('[DEBUG] Created bullet:', newBullet);
     setBullets(prev => [...prev, newBullet]);
     
     // Trigger player shooting animation
     if (playerRef.current && playerRef.current.triggerShootAnimation) {
       playerRef.current.triggerShootAnimation();
-      console.log('[DEBUG] Shooting animation triggered');
     }
   };
   
@@ -288,15 +225,11 @@ const GameScene: React.FC<GameSceneProps> = ({
   useEffect(() => {
     if (gameState !== 'playing' || roundComplete) return;
     
-    // Calculate how many enemies are still needed for this round
-    const enemiesRemaining = totalEnemiesForRound - enemiesKilled;
-    // Cap concurrent enemies based on round number, but don't exceed what's left for this round
-    const maxConcurrentEnemies = Math.min(3 + Math.min(round, 10), enemiesRemaining - enemies.length);
+    const maxConcurrentEnemies = 3 + Math.min(round, 10); // Cap concurrent enemies
     
     const spawnInterval = setInterval(() => {
-      // Only spawn if we haven't reached the maximum concurrent enemies 
-      // and we haven't spawned all enemies for this round
-      if (enemies.length < maxConcurrentEnemies && enemies.length + enemiesKilled < totalEnemiesForRound) {
+      // Only spawn if we haven't reached the maximum concurrent enemies
+      if (enemies.length < maxConcurrentEnemies) {
         // Random position on the edge of the game area
         const spawnRadius = gameAreaSize * 0.9; // Slightly inside the fog boundary
         const angle = Math.random() * Math.PI * 2;
@@ -318,7 +251,7 @@ const GameScene: React.FC<GameSceneProps> = ({
     }, Math.max(2500 - (round * 200), 800)); // Spawn faster in higher rounds
     
     return () => clearInterval(spawnInterval);
-  }, [gameState, enemies.length, round, roundComplete, enemiesKilled, totalEnemiesForRound]);
+  }, [gameState, enemies.length, round, roundComplete]);
   
   // Spawn ammo boxes periodically
   useEffect(() => {
@@ -452,10 +385,7 @@ const GameScene: React.FC<GameSceneProps> = ({
           
           // Check if round is complete after killing this enemy
           const isRoundComplete = enemyKilled();
-          console.log(`[DEBUG] Hit! Bullet ${bullet.id} hit enemy ${enemy.id} at distance ${distance.toFixed(2)}`);
-          
           if (isRoundComplete) {
-            console.log('[DEBUG] Round complete! Starting next round.');
             roundCompleteFlag = true;
           }
           
@@ -498,13 +428,8 @@ const GameScene: React.FC<GameSceneProps> = ({
     if (roundCompleteFlag && !roundComplete) {
       setRoundComplete(true);
       setTimeout(() => {
-        next
-
-Round();
+        nextRound();
         setRoundComplete(false);
-        // Clear all enemies when starting new round
-        setEnemies([]);
-        setDyingEnemies([]);
       }, 3000);
     }
     
@@ -559,7 +484,7 @@ Round();
           castShadow
         >
           <boxGeometry args={[0.5, 0.5, 0.5]} />
-          <meshStandardMaterial color="#FFD700" emissive="#FFAA00" emissiveIntensivity={0.5} />
+          <meshStandardMaterial color="#FFD700" emissive="#FFAA00" emissiveIntensity={0.5} />
         </mesh>
       ))}
     </>
