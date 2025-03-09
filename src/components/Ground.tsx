@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useMemo } from 'react';
 import * as THREE from 'three';
 
 interface GroundProps {
@@ -7,56 +6,60 @@ interface GroundProps {
 }
 
 export const Ground: React.FC<GroundProps> = ({ size }) => {
-  // Generate trees with variation
-  const forestElements = [];
-  
-  // Dense outer ring of trees
-  for (let i = 0; i < 40; i++) {
-    const angle = (i / 40) * Math.PI * 2;
-    const radius = size * 0.8 + Math.random() * 1;
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius;
-    const scale = 0.7 + Math.random() * 0.8;
+  // Generate trees and rocks only once using useMemo
+  const forestElements = useMemo(() => {
+    const elements = [];
     
-    forestElements.push(
-      <group key={`outer-tree-${i}`} position={[x, 0, z]} scale={[scale, scale, scale]}>
-        <Tree />
-      </group>
-    );
-  }
-  
-  // Scattered inner trees
-  for (let i = 0; i < 30; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const radius = Math.random() * size * 0.7;
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius;
-    const scale = 0.5 + Math.random() * 0.7;
-    
-    // Don't place trees too close to center
-    if (Math.sqrt(x*x + z*z) > 3) {
-      forestElements.push(
-        <group key={`inner-tree-${i}`} position={[x, 0, z]} scale={[scale, scale, scale]}>
+    // Dense outer ring of trees
+    for (let i = 0; i < 40; i++) {
+      const angle = (i / 40) * Math.PI * 2;
+      const radius = size * 0.8 + Math.random() * 1;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      const scale = 0.7 + Math.random() * 0.8;
+      
+      elements.push(
+        <group key={`outer-tree-${i}`} position={[x, 0, z]} scale={[scale, scale, scale]}>
           <Tree />
         </group>
       );
     }
-  }
-  
-  // Scattered rocks
-  for (let i = 0; i < 15; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const radius = Math.random() * size * 0.6;
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius;
-    const scale = 0.3 + Math.random() * 0.4;
     
-    forestElements.push(
-      <group key={`rock-${i}`} position={[x, 0, z]} scale={[scale, scale, scale]}>
-        <Rock />
-      </group>
-    );
-  }
+    // Scattered inner trees
+    for (let i = 0; i < 30; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * size * 0.7;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      const scale = 0.5 + Math.random() * 0.7;
+      
+      // Don't place trees too close to center
+      if (Math.sqrt(x*x + z*z) > 3) {
+        elements.push(
+          <group key={`inner-tree-${i}`} position={[x, 0, z]} scale={[scale, scale, scale]}>
+            <Tree />
+          </group>
+        );
+      }
+    }
+    
+    // Scattered rocks
+    for (let i = 0; i < 15; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * size * 0.6;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      const scale = 0.3 + Math.random() * 0.4;
+      
+      elements.push(
+        <group key={`rock-${i}`} position={[x, 0, z]} scale={[scale, scale, scale]}>
+          <Rock />
+        </group>
+      );
+    }
+    
+    return elements;
+  }, []); // Empty dependency array ensures this runs only once
 
   return (
     <group>
