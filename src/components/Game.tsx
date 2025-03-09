@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import React, { useState, useRef, useEffect, Suspense } from 'react';
+import { Canvas } from '@react-three/fiber';
 import { Player } from './Player';
 import { Ground } from './Ground';
 import { Enemy } from './Enemy';
@@ -16,6 +16,7 @@ export const Game: React.FC = () => {
     score, 
     lives, 
     ammo, 
+    round,
     gameOver,
     gameStarted,
     startGame,
@@ -50,14 +51,16 @@ export const Game: React.FC = () => {
         >
           <orthographicCamera attach="shadow-camera" args={[-10, 10, 10, -10]} />
         </directionalLight>
-        <fog attach="fog" args={['#1A1F2C', 0, 40]} />
+        <fog attach="fog" args={['#1A1F2C', 20, 60]} />
         
-        <GameScene 
-          playerPosition={playerPosition} 
-          onPlayerMove={handlePlayerMove} 
-          updateEnemies={updateEnemies}
-          updateAmmoBoxes={updateAmmoBoxes}
-        />
+        <Suspense fallback={null}>
+          <GameScene 
+            playerPosition={playerPosition} 
+            onPlayerMove={handlePlayerMove} 
+            updateEnemies={updateEnemies}
+            updateAmmoBoxes={updateAmmoBoxes}
+          />
+        </Suspense>
       </Canvas>
       
       <GameOverlay 
@@ -65,6 +68,7 @@ export const Game: React.FC = () => {
         lives={lives}
         gameOver={gameOver}
         ammo={ammo}
+        round={round}
         onStart={startGame}
         onRestart={resetGame}
       />
@@ -116,7 +120,6 @@ const GameScene: React.FC<GameSceneProps> = ({
   const nextEnemyId = useRef(1);
   const nextAmmoBoxId = useRef(1);
   const gameAreaSize = 20;
-  const [enemyCount, setEnemyCount] = useState(0);
   const [roundComplete, setRoundComplete] = useState(false);
   
   // Access global game state
@@ -128,7 +131,9 @@ const GameScene: React.FC<GameSceneProps> = ({
     addAmmo, 
     useAmmo,
     round,
-    nextRound
+    nextRound,
+    enemyKilled,
+    totalEnemiesForRound
   } = useGameState();
   
   // Compute current game state based on gameStarted and gameOver flags
@@ -165,27 +170,20 @@ const GameScene: React.FC<GameSceneProps> = ({
   
   // Create a bullet when player shoots
   const shoot = () => {
-    console.log("[DEBUG] Shoot function called");
-    
     // Check if player can shoot
     if (!playerRef.current) {
-      console.log("[DEBUG] Cannot shoot - no player ref");
       return;
     }
     
     // Use ammo
     const canShoot = useAmmo();
     if (!canShoot) {
-      console.log("[DEBUG] Cannot shoot - useAmmo returned false");
       return;
     }
     
     // Get player position and direction
     const position = playerRef.current.getPosition();
     const direction = playerRef.current.getDirection();
-    
-    console.log("[DEBUG] Player position:", position);
-    console.log("[DEBUG] Player direction:", direction);
     
     // Start bullet slightly in front of player (avoid self-collision)
     const bulletPosition: [number, number, number] = [
@@ -201,7 +199,6 @@ const GameScene: React.FC<GameSceneProps> = ({
       direction: [direction[0], 0, -direction[2]] as [number, number, number] // Fix Y-axis direction by inverting Z component
     };
     
-    console.log("[DEBUG] Created bullet:", newBullet);
     setBullets(prev => [...prev, newBullet]);
     
     // Trigger player shooting animation
@@ -226,22 +223,22 @@ const GameScene: React.FC<GameSceneProps> = ({
   
   // Spawn enemies periodically
   useEffect(() => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || roundComplete) return;
     
-    const maxEnemies = 3 + (round * 2); // Increase enemies per round
-    const totalEnemiesForRound = 5 + (round * 3); // Total enemies to spawn in this round
+    const maxConcurrentEnemies = 3 + Math.min(round, 10); // Cap concurrent enemies
     
     const spawnInterval = setInterval(() => {
       // Only spawn if we haven't reached the maximum concurrent enemies
-      // and haven't spawned all enemies for this round
-      if (enemies.length < maxEnemies && enemyCount < totalEnemiesForRound) {
+      if (enemies.length < maxConcurrentEnemies) {
         // Random position on the edge of the game area
-        const edge = Math.random() < 0.5 ? -1 : 1;
-        const side = Math.random() < 0.5;
+        const spawnRadius = gameAreaSize * 0.9; // Slightly inside the fog boundary
+        const angle = Math.random() * Math.PI * 2;
         
-        const position: [number, number, number] = side
-          ? [edge * gameAreaSize * 0.8, 0, (Math.random() * 2 - 1) * gameAreaSize * 0.8]
-          : [(Math.random() * 2 - 1) * gameAreaSize * 0.8, 0, edge * gameAreaSize * 0.8];
+        const position: [number, number, number] = [
+          Math.cos(angle) * spawnRadius,
+          0,
+          Math.sin(angle) * spawnRadius
+        ];
         
         setEnemies(prev => [
           ...prev,
@@ -250,40 +247,11 @@ const GameScene: React.FC<GameSceneProps> = ({
             position
           }
         ]);
-        
-        // Increment the enemy count
-        setEnemyCount(prev => prev + 1);
       }
-    }, Math.max(3000 - (round * 200), 800)); // Spawn faster in higher rounds
+    }, Math.max(2500 - (round * 200), 800)); // Spawn faster in higher rounds
     
     return () => clearInterval(spawnInterval);
-  }, [gameState, enemies.length, enemyCount, round, dyingEnemies.length]);
-  
-  // Separate effect to check for round completion outside the spawn interval
-  useEffect(() => {
-    if (gameState !== 'playing' || roundComplete) return;
-    
-    const totalEnemiesForRound = 5 + (round * 3);
-    
-    // Check if we've spawned all enemies for this round and there are no more alive or dying enemies
-    if (enemyCount >= totalEnemiesForRound && enemies.length === 0 && dyingEnemies.length === 0) {
-      console.log("[DEBUG] Round complete! Starting next round soon...");
-      setRoundComplete(true);
-    }
-  }, [gameState, enemyCount, enemies.length, dyingEnemies.length, round, roundComplete]);
-  
-  // Start next round after a delay
-  useEffect(() => {
-    if (gameState !== 'playing' || !roundComplete) return;
-    
-    const timer = setTimeout(() => {
-      nextRound();
-      setRoundComplete(false);
-      setEnemyCount(0);
-    }, 3000);
-    
-    return () => clearTimeout(timer);
-  }, [gameState, roundComplete]);
+  }, [gameState, enemies.length, round, roundComplete]);
   
   // Spawn ammo boxes periodically
   useEffect(() => {
@@ -358,7 +326,7 @@ const GameScene: React.FC<GameSceneProps> = ({
         }
         
         // Move enemy toward player
-        const speed = 0.02;
+        const speed = 0.02 + (round * 0.002); // Enemies get faster each round
         return { 
           ...enemy, 
           position: [
@@ -377,6 +345,7 @@ const GameScene: React.FC<GameSceneProps> = ({
     const allEnemies = [...enemies];
     const killedEnemies: typeof dyingEnemies = [];
     let bulletHits: number[] = [];
+    let roundCompleteFlag = false;
     
     // Check each bullet against each enemy
     for (let i = 0; i < allBullets.length; i++) {
@@ -395,8 +364,6 @@ const GameScene: React.FC<GameSceneProps> = ({
         
         // If close enough, count as a hit
         if (distance < 1.0) {
-          console.log(`[DEBUG] Hit! Bullet ${bullet.id} hit enemy ${enemy.id} at distance ${distance.toFixed(2)}`);
-          
           // Mark enemy as dying
           allEnemies[j] = {
             ...enemy,
@@ -413,8 +380,14 @@ const GameScene: React.FC<GameSceneProps> = ({
             deathTime: Date.now()
           });
           
-          // Increase score
+          // Update the score
           increaseScore();
+          
+          // Check if round is complete after killing this enemy
+          const isRoundComplete = enemyKilled();
+          if (isRoundComplete) {
+            roundCompleteFlag = true;
+          }
           
           break; // Stop checking this bullet
         }
@@ -451,6 +424,15 @@ const GameScene: React.FC<GameSceneProps> = ({
       });
     });
     
+    // Handle round completion
+    if (roundCompleteFlag && !roundComplete) {
+      setRoundComplete(true);
+      setTimeout(() => {
+        nextRound();
+        setRoundComplete(false);
+      }, 3000);
+    }
+    
     // Update game state in parent
     onPlayerMove(playerRef.current ? playerRef.current.getPosition() : [0, 0, 0]);
     updateEnemies([...enemies, ...dyingEnemies.map(e => ({ id: e.id, position: e.position, isDying: true }))]);
@@ -466,7 +448,7 @@ const GameScene: React.FC<GameSceneProps> = ({
         onDirectionChange={() => {}}
       />
       
-      <Ground size={gameAreaSize} />
+      <Ground size={gameAreaSize} isInfinite={true} />
       
       {/* Render bullets */}
       {bullets.map(bullet => (

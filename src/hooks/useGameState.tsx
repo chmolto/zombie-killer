@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -17,6 +18,8 @@ interface GameState {
   gameOver: boolean;
   gameStarted: boolean;
   newRoundStarted: boolean;
+  enemiesKilled: number;
+  totalEnemiesForRound: number;
   leaderboard: LeaderboardEntry[];
   increaseScore: () => void;
   decreaseLives: () => void;
@@ -26,6 +29,7 @@ interface GameState {
   resetGame: () => void;
   nextRound: () => void;
   acknowledgeNewRound: () => void;
+  enemyKilled: () => boolean; // Returns true if round is complete
   addToLeaderboard: (name: string) => void;
 }
 
@@ -39,6 +43,8 @@ export const useGameState = create<GameState>()(
       gameOver: false,
       gameStarted: false,
       newRoundStarted: false,
+      enemiesKilled: 0,
+      totalEnemiesForRound: 5, // Initial enemies for round 1
       leaderboard: [],
       
       increaseScore: () => set((state) => ({ score: state.score + 10 })),
@@ -72,6 +78,8 @@ export const useGameState = create<GameState>()(
         lives: 3,
         ammo: 10,
         round: 1,
+        enemiesKilled: 0,
+        totalEnemiesForRound: 5,
         newRoundStarted: true,
       }),
       
@@ -82,18 +90,35 @@ export const useGameState = create<GameState>()(
         lives: 3,
         ammo: 10,
         round: 1,
+        enemiesKilled: 0,
+        totalEnemiesForRound: 5,
         newRoundStarted: true,
       }),
+      
+      // Track when an enemy is killed and check if round is complete
+      enemyKilled: () => {
+        const state = get();
+        const newEnemiesKilled = state.enemiesKilled + 1;
+        
+        set({ enemiesKilled: newEnemiesKilled });
+        
+        // Return true if all enemies for this round have been killed
+        return newEnemiesKilled >= state.totalEnemiesForRound;
+      },
       
       // Advance to the next round
       nextRound: () => set((state) => {
         const newRound = state.round + 1;
         // Add bonus ammo for surviving a round
-        const bonusAmmo = Math.min(5 + newRound, 20); 
+        const bonusAmmo = Math.min(5 + newRound, 20);
+        // Calculate enemies for next round: 5 + (round * 2)
+        const newTotalEnemies = 5 + (newRound * 2);
         
         return {
           round: newRound,
           ammo: state.ammo + bonusAmmo,
+          enemiesKilled: 0,
+          totalEnemiesForRound: newTotalEnemies,
           newRoundStarted: true, // Flag to show the round announcement
         };
       }),
